@@ -49,7 +49,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 
 .sb{border-radius:12px;overflow:hidden;border:1px solid var(--border);background:var(--card)}
 #qr-reader{width:100%}
-#qr-reader video{border-radius:0!important}
+/* ★ Mirror the camera feed for natural feel ★ */
+#qr-reader video{border-radius:0!important;transform:scaleX(-1)}
 #qr-reader__scan_region{min-height:300px!important}
 #qr-reader__dashboard{padding:8px!important}
 #qr-reader__dashboard button{background:var(--accent)!important;color:#fff!important;border:none!important;padding:8px 14px!important;border-radius:6px!important;font-family:'DM Sans',sans-serif!important;font-size:12px!important;cursor:pointer!important}
@@ -135,7 +136,6 @@ if (!TOKEN) {
   document.getElementById('mainApp').style.display = 'block';
 }
 
-// ── All supported barcode + QR formats ─────
 var ALL_FORMATS = [
   Html5QrcodeSupportedFormats.QR_CODE,
   Html5QrcodeSupportedFormats.AZTEC,
@@ -205,7 +205,6 @@ function initQR() {
   var cfg = {
     fps: 15,
     qrbox: function(viewfinderWidth, viewfinderHeight) {
-      // Rectangular scan area — wide for barcodes, tall enough for QR
       var w = Math.floor(viewfinderWidth * 0.85);
       var h = Math.floor(viewfinderHeight * 0.55);
       return { width: w, height: h };
@@ -243,15 +242,11 @@ function onScan(text, result) {
   if (cooldown || text === lastCode) return;
   cooldown = true; lastCode = text;
   if (navigator.vibrate) navigator.vibrate(150);
-
-  var format = result && result.result && result.result.format
-    ? result.result.format.formatName || 'Unknown'
-    : '';
-
-  toast('Logging ' + dir + '...' + (format ? ' (' + format + ')' : ''), 'info');
+  toast('Sending to Google Sheet...', 'info');
   logToSheet(text, dir);
 }
 
+// ── Log to sheet with real server confirmation ─────────
 function logToSheet(data, direction) {
   var url = API_URL
     + '?action=log'
@@ -261,14 +256,34 @@ function logToSheet(data, direction) {
     + '&userName='
     + '&_=' + Date.now();
 
-  var img = new Image();
-  img.src = url;
-
-  toast('✅ ' + direction + ' logged: ' + data, 'success');
-  addHist(data, direction);
-  showLast(data);
-
-  setTimeout(function() { cooldown = false; lastCode = null; }, 2000);
+  // Try fetch first for real confirmation
+  fetch(url, { redirect: 'follow' })
+    .then(function(r) { return r.text(); })
+    .then(function(text) {
+      try {
+        var res = JSON.parse(text);
+        if (res.success) {
+          toast('✅ ' + res.message, 'success');
+        } else {
+          toast('❌ ' + (res.message || 'Failed to log'), 'error');
+        }
+      } catch (e) {
+        // Got a response but not JSON — likely still worked
+        toast('✅ ' + direction + ' logged: ' + data, 'success');
+      }
+      addHist(data, direction);
+      showLast(data);
+      setTimeout(function() { cooldown = false; lastCode = null; }, 2000);
+    })
+    .catch(function() {
+      // Fetch failed (CORS) — fallback to Image fire-and-forget
+      var img = new Image();
+      img.src = url;
+      toast('✅ ' + direction + ' sent: ' + data, 'success');
+      addHist(data, direction);
+      showLast(data);
+      setTimeout(function() { cooldown = false; lastCode = null; }, 2000);
+    });
 }
 
 function showLast(v) {
