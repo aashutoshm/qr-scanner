@@ -25,8 +25,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .banner.visible{display:flex}
 .banner.inward{background:linear-gradient(135deg,#166534,#15803d);border-bottom:3px solid var(--inward)}
 .banner.outward{background:linear-gradient(135deg,#78350f,#92400e);border-bottom:3px solid var(--outward)}
-.banner .bi{font-size:28px}
-.banner .bt{font-size:26px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#fff}
+.banner .bi{font-size:28px}.banner .bt{font-size:26px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#fff}
 
 .hdr{text-align:center;padding:20px 16px 10px}
 .hdr h1{font-size:20px;font-weight:700}
@@ -63,6 +62,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .swb{display:block;width:100%;margin-top:12px;padding:10px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--dim);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;text-align:center}
 .swb:hover{border-color:var(--accent);color:var(--text)}
 
+/* ── Result Card ── */
 .result{margin-top:12px;padding:16px;border-radius:12px;text-align:center;display:none;animation:fi .3s ease}
 .result.visible{display:block}
 .result.found{background:var(--inward-bg);border:2px solid var(--inward)}
@@ -74,8 +74,24 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .result.notfound .r-title{color:var(--danger)}
 .result.waiting .r-title{color:#93c5fd}
 .result .r-detail{font-size:13px;color:var(--dim);margin-top:4px}
-.result .r-cell{font-size:20px;font-weight:800;color:var(--text);margin-top:4px;letter-spacing:1px}
+.result .r-cell{font-size:18px;font-weight:800;color:var(--text);margin-top:4px;letter-spacing:1px}
 @keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── Employee Picker Overlay ── */
+.emp-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:200;align-items:center;justify-content:center;padding:16px}
+.emp-overlay.visible{display:flex}
+.emp-card{background:var(--card);border:2px solid var(--outward);border-radius:16px;padding:20px;width:100%;max-width:380px;max-height:80vh;overflow-y:auto}
+.emp-card .emp-hdr{text-align:center;margin-bottom:16px}
+.emp-card .emp-hdr .emp-icon{font-size:28px}
+.emp-card .emp-hdr h2{font-size:16px;font-weight:800;color:var(--outward);margin-top:4px}
+.emp-card .emp-hdr p{font-size:12px;color:var(--dim);margin-top:2px}
+.emp-card .emp-tray{font-size:14px;font-weight:700;text-align:center;margin-bottom:12px;color:var(--text)}
+
+.emp-btn{display:block;width:100%;padding:14px 16px;margin-bottom:8px;background:var(--outward-bg);border:1px solid rgba(245,158,11,0.3);border-radius:10px;color:var(--text);font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;text-align:left;transition:all .15s}
+.emp-btn:hover{background:rgba(245,158,11,0.2);border-color:var(--outward)}
+.emp-btn:active{background:rgba(245,158,11,0.3)}
+
+.emp-cancel{display:block;width:100%;padding:10px;margin-top:4px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--dim);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;text-align:center}
 
 .toast{position:fixed;bottom:16px;left:16px;right:16px;max-width:440px;margin:0 auto;padding:12px 16px;border-radius:10px;font-size:13px;font-weight:600;z-index:9999;text-align:center;transform:translateY(80px);transition:transform .25s ease}
 .toast.show{transform:translateY(0)}
@@ -97,24 +113,19 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 <body>
 
 <div class="unauthorized" id="noAuth">
-  <div class="icon">🔒</div>
-  <h1>Access Restricted</h1>
+  <div class="icon">🔒</div><h1>Access Restricted</h1>
   <p>This scanner can only be opened from<br>the Google Sheet sidebar.</p>
 </div>
 
 <div class="noopener" id="noOpener">
-  <div class="icon">⚠️</div>
-  <h1>Open From Sheet</h1>
-  <p>This scanner must be opened from the<br><b>📦 QR Scanner</b> sidebar in Google Sheets.<br><br>Go to your sheet → 📦 QR Scanner → Open Scanner</p>
+  <div class="icon">⚠️</div><h1>Open From Sheet</h1>
+  <p>This scanner must be opened from the<br><b>📦 QR Scanner</b> sidebar in Google Sheets.</p>
 </div>
 
 <div id="mainApp" style="display:none;">
   <div class="banner" id="dirB"><span class="bi" id="bI">📥</span><span class="bt" id="bT">INWARD</span></div>
 
-  <div class="hdr">
-    <h1>📦 Tray Scanner</h1>
-    <p>Pick direction → scan tray barcode → sheet navigates to it</p>
-  </div>
+  <div class="hdr"><h1>📦 Tray Scanner</h1><p>Pick direction → scan tray barcode</p></div>
 
   <div class="sec pick" id="sPick">
     <div class="pr">What are you logging?</div>
@@ -128,16 +139,28 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <div class="hint">Point camera at tray barcode</div>
     <div class="st" id="st"></div>
     <div class="sb"><div id="qr-reader"></div></div>
-
     <div class="result" id="resultCard">
       <div class="r-icon" id="rIcon"></div>
       <div class="r-title" id="rTitle"></div>
       <div class="r-detail" id="rDetail"></div>
       <div class="r-cell" id="rCell"></div>
     </div>
-
     <button class="swb" onclick="goBack()">← Switch direction</button>
     <div class="ht"><h3>Scan History</h3><div id="hL"><div class="emp">No scans yet.</div></div></div>
+  </div>
+</div>
+
+<!-- ── Employee Picker Overlay ── -->
+<div class="emp-overlay" id="empOverlay">
+  <div class="emp-card">
+    <div class="emp-hdr">
+      <div class="emp-icon">👤</div>
+      <h2>Select Employee</h2>
+      <p>Who worked on this case?</p>
+    </div>
+    <div class="emp-tray" id="empTray"></div>
+    <div id="empList"></div>
+    <button class="emp-cancel" onclick="cancelEmployeePick()">Cancel</button>
   </div>
 </div>
 
@@ -147,7 +170,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 var params = new URLSearchParams(window.location.search);
 var TOKEN = params.get('token');
 
-// ── Access gates ───────────────────────────
 if (!TOKEN) {
   document.getElementById('noAuth').style.display = 'flex';
 } else if (!window.opener) {
@@ -159,26 +181,19 @@ if (!TOKEN) {
 }
 
 var ALL_FORMATS = [
-  Html5QrcodeSupportedFormats.QR_CODE,
-  Html5QrcodeSupportedFormats.AZTEC,
-  Html5QrcodeSupportedFormats.CODABAR,
-  Html5QrcodeSupportedFormats.CODE_39,
-  Html5QrcodeSupportedFormats.CODE_93,
-  Html5QrcodeSupportedFormats.CODE_128,
-  Html5QrcodeSupportedFormats.DATA_MATRIX,
-  Html5QrcodeSupportedFormats.MAXICODE,
-  Html5QrcodeSupportedFormats.ITF,
-  Html5QrcodeSupportedFormats.EAN_13,
-  Html5QrcodeSupportedFormats.EAN_8,
-  Html5QrcodeSupportedFormats.PDF_417,
-  Html5QrcodeSupportedFormats.RSS_14,
-  Html5QrcodeSupportedFormats.RSS_EXPANDED,
-  Html5QrcodeSupportedFormats.UPC_A,
-  Html5QrcodeSupportedFormats.UPC_E
+  Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.AZTEC,
+  Html5QrcodeSupportedFormats.CODABAR, Html5QrcodeSupportedFormats.CODE_39,
+  Html5QrcodeSupportedFormats.CODE_93, Html5QrcodeSupportedFormats.CODE_128,
+  Html5QrcodeSupportedFormats.DATA_MATRIX, Html5QrcodeSupportedFormats.MAXICODE,
+  Html5QrcodeSupportedFormats.ITF, Html5QrcodeSupportedFormats.EAN_13,
+  Html5QrcodeSupportedFormats.EAN_8, Html5QrcodeSupportedFormats.PDF_417,
+  Html5QrcodeSupportedFormats.RSS_14, Html5QrcodeSupportedFormats.RSS_EXPANDED,
+  Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E
 ];
 
 var dir = null, qrScanner = null, running = false;
 var hist = [], cooldown = false, lastCode = null;
+var pendingOutward = null; // stores context for employee pick
 
 function setSt(m, t, retry) {
   var e = document.getElementById('st');
@@ -203,98 +218,130 @@ function startCam() {
   navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
     .then(function(stream) {
       stream.getTracks().forEach(function(t) { t.stop(); });
-      setSt('✅ Starting scanner...', 'loading', false);
       initQR();
     })
     .catch(function(err) {
       var m = String(err);
-      if (m.indexOf('NotAllowed') !== -1 || m.indexOf('Permission') !== -1) {
-        setSt('🚫 Camera blocked.<br><br><b>Fix:</b> Click the lock 🔒 in address bar → Camera → Allow → Retry', 'error', true);
-      } else if (m.indexOf('NotFound') !== -1) {
-        setSt('❌ No camera found.', 'error', true);
-      } else {
-        setSt('❌ ' + m, 'error', true);
-      }
+      if (m.indexOf('NotAllowed') !== -1) setSt('🚫 Camera blocked. Click lock 🔒 → Allow → Retry', 'error', true);
+      else setSt('❌ ' + m, 'error', true);
     });
 }
 
 function initQR() {
-  qrScanner = new Html5Qrcode('qr-reader', {
-    formatsToSupport: ALL_FORMATS,
-    verbose: false
-  });
+  qrScanner = new Html5Qrcode('qr-reader', { formatsToSupport: ALL_FORMATS, verbose: false });
   var cfg = {
     fps: 15,
-    qrbox: function(vw, vh) {
-      return { width: Math.floor(vw * 0.85), height: Math.floor(vh * 0.55) };
-    },
+    qrbox: function(vw, vh) { return { width: Math.floor(vw * 0.85), height: Math.floor(vh * 0.55) }; },
     rememberLastUsedCamera: true,
     experimentalFeatures: { useBarCodeDetectorIfSupported: true }
   };
   qrScanner.start({ facingMode: 'environment' }, cfg, onScan, function() {})
-    .then(function() {
-      running = true;
-      setSt('✅ Camera active — scan a tray barcode', 'ok', false);
-      setTimeout(hideSt, 2500);
-    })
+    .then(function() { running = true; setSt('✅ Camera active — scan a tray', 'ok', false); setTimeout(hideSt, 2500); })
     .catch(function() {
       Html5Qrcode.getCameras().then(function(c) {
         if (c && c.length) {
           qrScanner.start(c[0].id, cfg, onScan, function() {})
             .then(function() { running = true; setSt('✅ Camera active', 'ok', false); setTimeout(hideSt, 2000); })
             .catch(function(e) { setSt('❌ ' + e, 'error', true); });
-        } else { setSt('❌ No cameras detected.', 'error', true); }
+        } else setSt('❌ No cameras.', 'error', true);
       });
     });
 }
 
-function stopCam() {
-  if (qrScanner && running) {
-    qrScanner.stop().then(function() { running = false; qrScanner.clear(); }).catch(function() {});
-  }
-}
+function stopCam() { if (qrScanner && running) qrScanner.stop().then(function() { running = false; qrScanner.clear(); }).catch(function() {}); }
 
-// ══════════════════════════════════════════
-//  Scan detected → send to sidebar
-// ══════════════════════════════════════════
+// ── Barcode scanned ────────────────────────
 function onScan(text) {
   if (cooldown || text === lastCode) return;
   cooldown = true; lastCode = text;
   if (navigator.vibrate) navigator.vibrate(150);
-
-  // Show waiting state
+  document.getElementById('resultCard').className = 'result';
   showWaiting(text);
   toast('Looking up tray ' + text + '...', 'info');
 
-  // Send to sidebar via postMessage
-  window.opener.postMessage({
-    type: 'tray-scan',
-    qrData: text,
-    direction: dir
-  }, '*');
+  window.opener.postMessage({ type: 'tray-scan', qrData: text, direction: dir }, '*');
 
-  // Timeout if no response in 10 seconds
   clearTimeout(window._scanTimeout);
   window._scanTimeout = setTimeout(function() {
     if (cooldown) {
-      showResultCard(false, 'No response from sheet. Is the sidebar open?', text, '');
+      showResultCard(false, 'No response. Is the sidebar open?', text, '');
       cooldown = false; lastCode = null;
     }
-  }, 10000);
+  }, 15000);
 }
 
 // ══════════════════════════════════════════
-//  Listen for result from sidebar
+//  Listen for messages from sidebar
 // ══════════════════════════════════════════
 window.addEventListener('message', function(event) {
   var data = event.data;
-  if (!data || data.type !== 'scan-result') return;
+  if (!data) return;
 
-  clearTimeout(window._scanTimeout);
-  showResultCard(data.success, data.message, data.qrData, data.cellRef || '');
+  // ── Inward result or error ───────────
+  if (data.type === 'scan-result') {
+    clearTimeout(window._scanTimeout);
+    showResultCard(data.success, data.message, data.qrData, data.cellRef || '');
+    setTimeout(function() { cooldown = false; lastCode = null; }, 2500);
+  }
 
-  setTimeout(function() { cooldown = false; lastCode = null; }, 2500);
+  // ── Outward: show employee picker ────
+  if (data.type === 'pick-employee') {
+    clearTimeout(window._scanTimeout);
+    pendingOutward = {
+      qrData: data.qrData,
+      colLetter: data.colLetter,
+      trayRow: data.trayRow,
+      cellRef: data.cellRef
+    };
+    showEmployeePicker(data.options, data.qrData);
+  }
+
+  // ── Outward result after selection ───
+  if (data.type === 'outward-result') {
+    showResultCard(data.success, data.message, data.qrData, data.cellRef || '');
+    setTimeout(function() { cooldown = false; lastCode = null; }, 2500);
+  }
 });
+
+// ══════════════════════════════════════════
+//  Employee Picker
+// ══════════════════════════════════════════
+function showEmployeePicker(options, qrData) {
+  document.getElementById('empTray').textContent = 'Tray: ' + qrData;
+  var list = document.getElementById('empList');
+  list.innerHTML = options.map(function(name) {
+    return '<button class="emp-btn" onclick="selectEmployee(\'' + esc(name).replace(/'/g, "\\'") + '\')">' + esc(name) + '</button>';
+  }).join('');
+  document.getElementById('empOverlay').classList.add('visible');
+}
+
+function selectEmployee(name) {
+  document.getElementById('empOverlay').classList.remove('visible');
+
+  if (!pendingOutward) return;
+
+  toast('Setting ' + name + '...', 'info');
+  showWaiting(pendingOutward.qrData);
+
+  window.opener.postMessage({
+    type: 'outward-select',
+    qrData: pendingOutward.qrData,
+    colLetter: pendingOutward.colLetter,
+    trayRow: pendingOutward.trayRow,
+    selectedName: name
+  }, '*');
+
+  pendingOutward = null;
+}
+
+function cancelEmployeePick() {
+  document.getElementById('empOverlay').classList.remove('visible');
+  pendingOutward = null;
+  document.getElementById('resultCard').className = 'result';
+  cooldown = false;
+  lastCode = null;
+  toast('Cancelled', 'info');
+}
 
 // ── UI helpers ─────────────────────────────
 function showWaiting(text) {
@@ -308,25 +355,23 @@ function showWaiting(text) {
 
 function showResultCard(success, message, qrData, cellRef) {
   var card = document.getElementById('resultCard');
-
   if (success) {
     card.className = 'result visible found';
     document.getElementById('rIcon').textContent = '✅';
-    document.getElementById('rTitle').textContent = 'Tray Found';
-    document.getElementById('rDetail').textContent = 'Sheet navigated to:';
+    document.getElementById('rTitle').textContent = 'Updated';
+    document.getElementById('rDetail').textContent = message;
     document.getElementById('rCell').textContent = cellRef;
     toast('✅ ' + message, 'success');
-    addHist(qrData, cellRef, true);
+    addHist(qrData, cellRef || message, true);
   } else {
     card.className = 'result visible notfound';
     document.getElementById('rIcon').textContent = '❌';
-    document.getElementById('rTitle').textContent = message || 'Tray Not Mapped';
+    document.getElementById('rTitle').textContent = message || 'Error';
     document.getElementById('rDetail').textContent = 'Scanned: ' + qrData;
     document.getElementById('rCell').textContent = '';
     toast('❌ ' + message, 'error');
-    addHist(qrData, message || 'Not mapped', false);
+    addHist(qrData, message || 'Error', false);
   }
-
   setTimeout(function() { card.className = 'result'; }, 5000);
 }
 
@@ -346,8 +391,7 @@ function addHist(d, info, found) {
 }
 
 function toast(m, t) {
-  var e = document.getElementById('toast');
-  e.textContent = m;
+  var e = document.getElementById('toast'); e.textContent = m;
   e.className = 'toast ' + t + ' show';
   clearTimeout(window._tt);
   window._tt = setTimeout(function() { e.classList.remove('show'); }, 3000);
