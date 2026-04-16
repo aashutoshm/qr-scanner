@@ -16,6 +16,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .unauthorized h1{font-size:20px;font-weight:700;margin-bottom:8px}
 .unauthorized p{color:var(--dim);font-size:13px;line-height:1.5}
 
+.noopener{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:24px}
+.noopener .icon{font-size:48px;margin-bottom:12px}
+.noopener h1{font-size:20px;font-weight:700;margin-bottom:8px;color:var(--outward)}
+.noopener p{color:var(--dim);font-size:13px;line-height:1.6}
+
 .banner{position:sticky;top:0;z-index:100;padding:14px 16px;text-align:center;display:none;align-items:center;justify-content:center;gap:10px}
 .banner.visible{display:flex}
 .banner.inward{background:linear-gradient(135deg,#166534,#15803d);border-bottom:3px solid var(--inward)}
@@ -62,10 +67,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .result.visible{display:block}
 .result.found{background:var(--inward-bg);border:2px solid var(--inward)}
 .result.notfound{background:var(--danger-bg);border:2px solid var(--danger)}
+.result.waiting{background:#1e3a5f;border:2px solid #3b82f6}
 .result .r-icon{font-size:32px}
 .result .r-title{font-size:16px;font-weight:800;margin-top:6px}
 .result.found .r-title{color:var(--inward)}
 .result.notfound .r-title{color:var(--danger)}
+.result.waiting .r-title{color:#93c5fd}
 .result .r-detail{font-size:13px;color:var(--dim);margin-top:4px}
 .result .r-cell{font-size:20px;font-weight:800;color:var(--text);margin-top:4px;letter-spacing:1px}
 @keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
@@ -95,6 +102,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   <p>This scanner can only be opened from<br>the Google Sheet sidebar.</p>
 </div>
 
+<div class="noopener" id="noOpener">
+  <div class="icon">⚠️</div>
+  <h1>Open From Sheet</h1>
+  <p>This scanner must be opened from the<br><b>📦 QR Scanner</b> sidebar in Google Sheets.<br><br>Go to your sheet → 📦 QR Scanner → Open Scanner</p>
+</div>
+
 <div id="mainApp" style="display:none;">
   <div class="banner" id="dirB"><span class="bi" id="bI">📥</span><span class="bt" id="bT">INWARD</span></div>
 
@@ -117,8 +130,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <div class="sb"><div id="qr-reader"></div></div>
 
     <div class="result" id="resultCard">
-      <div class="r-icon" id="rIcon">✅</div>
-      <div class="r-title" id="rTitle">Tray Found</div>
+      <div class="r-icon" id="rIcon"></div>
+      <div class="r-title" id="rTitle"></div>
       <div class="r-detail" id="rDetail"></div>
       <div class="r-cell" id="rCell"></div>
     </div>
@@ -131,15 +144,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 <div class="toast" id="toast"></div>
 
 <script>
-var API_URL = 'https://script.google.com/macros/s/AKfycbwxZSFMuEej_ckbkZI9fBMWBCBGwECLGBlJk5saTyViz7C6KkNY1ACax9QpqvsWz029/exec';
-
 var params = new URLSearchParams(window.location.search);
 var TOKEN = params.get('token');
 
+// ── Access gates ───────────────────────────
 if (!TOKEN) {
   document.getElementById('noAuth').style.display = 'flex';
+} else if (!window.opener) {
+  document.getElementById('noOpener').style.display = 'flex';
 } else {
   document.getElementById('noAuth').style.display = 'none';
+  document.getElementById('noOpener').style.display = 'none';
   document.getElementById('mainApp').style.display = 'block';
 }
 
@@ -164,7 +179,6 @@ var ALL_FORMATS = [
 
 var dir = null, qrScanner = null, running = false;
 var hist = [], cooldown = false, lastCode = null;
-var jsonpCounter = 0;
 
 function setSt(m, t, retry) {
   var e = document.getElementById('st');
@@ -240,94 +254,77 @@ function stopCam() {
   }
 }
 
+// ══════════════════════════════════════════
+//  Scan detected → send to sidebar
+// ══════════════════════════════════════════
 function onScan(text) {
   if (cooldown || text === lastCode) return;
   cooldown = true; lastCode = text;
   if (navigator.vibrate) navigator.vibrate(150);
-  document.getElementById('resultCard').className = 'result';
+
+  // Show waiting state
+  showWaiting(text);
   toast('Looking up tray ' + text + '...', 'info');
-  searchTray(text, dir);
-}
 
-// ══════════════════════════════════════════
-//  JSONP — guaranteed cross-origin response
-// ══════════════════════════════════════════
-function searchTray(data, direction) {
-  jsonpCounter++;
-  var cbName = '_scanCb' + jsonpCounter;
+  // Send to sidebar via postMessage
+  window.opener.postMessage({
+    type: 'tray-scan',
+    qrData: text,
+    direction: dir
+  }, '*');
 
-  // Set a timeout in case the request fails
-  var timeout = setTimeout(function() {
-    if (window[cbName]) {
-      delete window[cbName];
-      showResult({ success: false, message: 'Request timed out. Check your internet.' }, data);
+  // Timeout if no response in 10 seconds
+  clearTimeout(window._scanTimeout);
+  window._scanTimeout = setTimeout(function() {
+    if (cooldown) {
+      showResultCard(false, 'No response from sheet. Is the sidebar open?', text, '');
       cooldown = false; lastCode = null;
     }
   }, 10000);
-
-  // Register callback function
-  window[cbName] = function(result) {
-    clearTimeout(timeout);
-    delete window[cbName];
-    showResult(result, data);
-    setTimeout(function() { cooldown = false; lastCode = null; }, 2500);
-  };
-
-  // Create script tag — browser loads it, server returns: cbName({...})
-  var url = API_URL
-    + '?action=scan'
-    + '&callback=' + cbName
-    + '&token=' + encodeURIComponent(TOKEN)
-    + '&qrData=' + encodeURIComponent(data)
-    + '&direction=' + encodeURIComponent(direction)
-    + '&_=' + Date.now();
-
-  var script = document.createElement('script');
-  script.src = url;
-  script.onerror = function() {
-    clearTimeout(timeout);
-    if (window[cbName]) {
-      delete window[cbName];
-      showResult({ success: false, message: 'Network error. Check connection.' }, data);
-      cooldown = false; lastCode = null;
-    }
-    script.remove();
-  };
-  document.head.appendChild(script);
-
-  // Clean up script tag after response
-  var checkDone = setInterval(function() {
-    if (!window[cbName]) {
-      script.remove();
-      clearInterval(checkDone);
-    }
-  }, 500);
 }
 
-// ── Show result card ───────────────────────
-function showResult(res, data) {
-  var card = document.getElementById('resultCard');
-  var icon = document.getElementById('rIcon');
-  var title = document.getElementById('rTitle');
-  var detail = document.getElementById('rDetail');
-  var cell = document.getElementById('rCell');
+// ══════════════════════════════════════════
+//  Listen for result from sidebar
+// ══════════════════════════════════════════
+window.addEventListener('message', function(event) {
+  var data = event.data;
+  if (!data || data.type !== 'scan-result') return;
 
-  if (res.success) {
+  clearTimeout(window._scanTimeout);
+  showResultCard(data.success, data.message, data.qrData, data.cellRef || '');
+
+  setTimeout(function() { cooldown = false; lastCode = null; }, 2500);
+});
+
+// ── UI helpers ─────────────────────────────
+function showWaiting(text) {
+  var card = document.getElementById('resultCard');
+  card.className = 'result visible waiting';
+  document.getElementById('rIcon').textContent = '🔍';
+  document.getElementById('rTitle').textContent = 'Searching...';
+  document.getElementById('rDetail').textContent = 'Looking up: ' + text;
+  document.getElementById('rCell').textContent = '';
+}
+
+function showResultCard(success, message, qrData, cellRef) {
+  var card = document.getElementById('resultCard');
+
+  if (success) {
     card.className = 'result visible found';
-    icon.textContent = '✅';
-    title.textContent = 'Tray Found';
-    detail.textContent = 'Sheet navigating to:';
-    cell.textContent = res.cellRef || '';
-    toast('✅ ' + res.message, 'success');
-    addHist(data, res.cellRef || '—', true);
+    document.getElementById('rIcon').textContent = '✅';
+    document.getElementById('rTitle').textContent = 'Tray Found';
+    document.getElementById('rDetail').textContent = 'Sheet navigated to:';
+    document.getElementById('rCell').textContent = cellRef;
+    toast('✅ ' + message, 'success');
+    addHist(qrData, cellRef, true);
   } else {
     card.className = 'result visible notfound';
-    icon.textContent = '❌';
-    title.textContent = res.message || 'Tray Not Mapped';
-    detail.textContent = 'Scanned: ' + data;
-    cell.textContent = '';
-    toast('❌ ' + res.message, 'error');
-    addHist(data, res.message || 'Not mapped', false);
+    document.getElementById('rIcon').textContent = '❌';
+    document.getElementById('rTitle').textContent = message || 'Tray Not Mapped';
+    document.getElementById('rDetail').textContent = 'Scanned: ' + qrData;
+    document.getElementById('rCell').textContent = '';
+    toast('❌ ' + message, 'error');
+    addHist(qrData, message || 'Not mapped', false);
   }
 
   setTimeout(function() { card.className = 'result'; }, 5000);
