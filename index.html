@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>QR Scanner</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0f0f13;--card:#1a1a24;--border:#2a2a3a;--text:#e8e8f0;--dim:#8888a0;--inward:#22c55e;--inward-bg:rgba(34,197,94,0.12);--outward:#f59e0b;--outward-bg:rgba(245,158,11,0.12);--accent:#6366f1}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding-bottom:20px}
+
+/* ── Unauthorized Screen ── */
+.unauthorized{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:24px}
+.unauthorized .icon{font-size:48px;margin-bottom:12px}
+.unauthorized h1{font-size:20px;font-weight:700;margin-bottom:8px}
+.unauthorized p{color:var(--dim);font-size:13px;line-height:1.5}
+
+/* ── Banner ── */
+.banner{position:sticky;top:0;z-index:100;padding:14px 16px;text-align:center;display:none;align-items:center;justify-content:center;gap:10px}
+.banner.visible{display:flex}
+.banner.inward{background:linear-gradient(135deg,#166534,#15803d);border-bottom:3px solid var(--inward)}
+.banner.outward{background:linear-gradient(135deg,#78350f,#92400e);border-bottom:3px solid var(--outward)}
+.banner .bi{font-size:28px}
+.banner .bt{font-size:26px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#fff}
+
+.hdr{text-align:center;padding:20px 16px 10px}
+.hdr h1{font-size:20px;font-weight:700}
+.hdr p{color:var(--dim);font-size:12px;margin-top:4px}
+.sec{max-width:440px;margin:0 auto;padding:0 16px}
+
+/* ── Direction Picker ── */
+.pick{text-align:center;padding:24px 0}
+.pick .pr{font-size:14px;color:var(--dim);margin-bottom:16px}
+.pbns{display:flex;gap:12px}
+.pb{flex:1;padding:28px 8px;border-radius:14px;font-family:inherit;font-size:18px;font-weight:800;cursor:pointer;border:2px solid transparent;display:flex;flex-direction:column;align-items:center;gap:8px;letter-spacing:1px;text-transform:uppercase;transition:all .15s}
+.pb .i{font-size:32px}
+.pb.inward{background:var(--inward-bg);border-color:var(--inward);color:var(--inward)}
+.pb.inward:hover{background:rgba(34,197,94,0.2)}
+.pb.outward{background:var(--outward-bg);border-color:var(--outward);color:var(--outward)}
+.pb.outward:hover{background:rgba(245,158,11,0.2)}
+
+/* ── Scanner ── */
+.ss{display:none}.ss.visible{display:block}
+.hint{text-align:center;font-size:12px;color:var(--dim);margin:10px 0}
+.st{text-align:center;padding:14px;margin:8px 0;border-radius:10px;font-size:13px;font-weight:600;display:none;line-height:1.5}
+.st.visible{display:block}
+.st.loading{background:#1e3a5f;color:#bfdbfe}
+.st.error{background:#7f1d1d;color:#fecaca}
+.st.ok{background:#166534;color:#bbf7d0}
+.rtbtn{display:inline-block;margin-top:10px;padding:10px 20px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer}
+
+.sb{border-radius:12px;overflow:hidden;border:1px solid var(--border);background:var(--card)}
+#qr-reader{width:100%}
+#qr-reader video{border-radius:0!important}
+#qr-reader__scan_region{min-height:260px!important}
+#qr-reader__dashboard{padding:8px!important}
+#qr-reader__dashboard button{background:var(--accent)!important;color:#fff!important;border:none!important;padding:8px 14px!important;border-radius:6px!important;font-family:'DM Sans',sans-serif!important;font-size:12px!important;cursor:pointer!important}
+#qr-reader__dashboard select{background:var(--card)!important;color:var(--text)!important;border:1px solid var(--border)!important;border-radius:4px!important;padding:4px!important;font-size:12px!important}
+#qr-reader__dashboard span{color:var(--dim)!important;font-size:11px!important}
+#qr-reader img[alt="Info icon"]{display:none!important}
+
+.swb{display:block;width:100%;margin-top:12px;padding:10px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--dim);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;text-align:center}
+.swb:hover{border-color:var(--accent);color:var(--text)}
+
+/* ── Last Scan ── */
+.ls{margin-top:12px;padding:12px;border-radius:10px;text-align:center;display:none;animation:fi .3s ease}
+.ls.visible{display:block}
+.ls.inward{background:var(--inward-bg);border:1px solid rgba(34,197,94,0.3)}
+.ls.outward{background:var(--outward-bg);border:1px solid rgba(245,158,11,0.3)}
+.ls .ck{font-size:24px}
+.ls .ll{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-top:4px}
+.ls .vl{font-size:15px;font-weight:700;margin-top:2px;word-break:break-all}
+@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── Toast ── */
+.toast{position:fixed;bottom:16px;left:16px;right:16px;max-width:440px;margin:0 auto;padding:12px 16px;border-radius:10px;font-size:13px;font-weight:600;z-index:9999;text-align:center;transform:translateY(80px);transition:transform .25s ease}
+.toast.show{transform:translateY(0)}
+.toast.success{background:#166534;color:#bbf7d0}
+.toast.error{background:#7f1d1d;color:#fecaca}
+.toast.info{background:#1e3a5f;color:#bfdbfe}
+
+/* ── History ── */
+.ht{margin-top:16px;padding-bottom:20px}
+.ht h3{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:8px}
+.hi{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center}
+.hi .qt{font-weight:600;font-size:13px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hi .tm{font-size:10px;color:var(--dim);margin-top:1px}
+.bg{padding:3px 8px;border-radius:5px;font-size:10px;font-weight:700;flex-shrink:0}
+.bg.inward{background:var(--inward-bg);color:var(--inward)}
+.bg.outward{background:var(--outward-bg);color:var(--outward)}
+.emp{text-align:center;color:var(--dim);font-size:12px;padding:16px}
+</style>
+</head>
+<body>
+
+<!-- ── Shown if no token ── -->
+<div class="unauthorized" id="noAuth">
+  <div class="icon">🔒</div>
+  <h1>Access Restricted</h1>
+  <p>This scanner can only be opened from<br>the Google Sheet sidebar.</p>
+</div>
+
+<!-- ── Main App (hidden until token validated) ── -->
+<div id="mainApp" style="display:none;">
+
+  <div class="banner" id="dirB"><span class="bi" id="bI">📥</span><span class="bt" id="bT">INWARD</span></div>
+
+  <div class="hdr">
+    <h1>📦 QR Scanner</h1>
+    <p>Pick direction → scan QR → auto-logged to Google Sheet</p>
+  </div>
+
+  <div class="sec pick" id="sPick">
+    <div class="pr">What are you logging?</div>
+    <div class="pbns">
+      <button class="pb inward" onclick="pickDir('Inward')"><span class="i">📥</span>Inward</button>
+      <button class="pb outward" onclick="pickDir('Outward')"><span class="i">📤</span>Outward</button>
+    </div>
+  </div>
+
+  <div class="sec ss" id="sScan">
+    <div class="hint">Point camera at QR code — logs automatically</div>
+    <div class="st" id="st"></div>
+    <div class="sb"><div id="qr-reader"></div></div>
+    <div class="ls" id="lScan"><div class="ck">✅</div><div class="ll">Last logged</div><div class="vl" id="lVal">—</div></div>
+    <button class="swb" onclick="goBack()">← Switch direction</button>
+    <div class="ht"><h3>Scan History</h3><div id="hL"><div class="emp">No scans yet.</div></div></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ★ YOUR APPS SCRIPT WEB APP URL ★
+var API_URL = 'https://script.google.com/macros/s/AKfycbwxZSFMuEej_ckbkZI9fBMWBCBGwECLGBlJk5saTyViz7C6KkNY1ACax9QpqvsWz029/exec';
+
+// ── Read token from URL ────────────────
+var params = new URLSearchParams(window.location.search);
+var TOKEN = params.get('token');
+
+// ── Gate: no token = no access ─────────
+if (!TOKEN) {
+  document.getElementById('noAuth').style.display = 'flex';
+} else {
+  document.getElementById('noAuth').style.display = 'none';
+  document.getElementById('mainApp').style.display = 'block';
+}
+
+var dir = null, qrScanner = null, running = false;
+var hist = [], cooldown = false, lastCode = null;
+
+function setSt(m, t, retry) {
+  var e = document.getElementById('st');
+  e.innerHTML = m + (retry ? '<br><button class="rtbtn" onclick="startCam()">🔄 Retry</button>' : '');
+  e.className = 'st visible ' + t;
+}
+function hideSt() { document.getElementById('st').className = 'st'; }
+
+function pickDir(d) {
+  dir = d;
+  var b = document.getElementById('dirB');
+  b.className = 'banner visible ' + d.toLowerCase();
+  document.getElementById('bI').textContent = d === 'Inward' ? '📥' : '📤';
+  document.getElementById('bT').textContent = d.toUpperCase();
+  document.getElementById('sPick').style.display = 'none';
+  document.getElementById('sScan').classList.add('visible');
+  startCam();
+}
+
+function startCam() {
+  setSt('📷 Requesting camera...', 'loading', false);
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    .then(function(stream) {
+      stream.getTracks().forEach(function(t) { t.stop(); });
+      setSt('✅ Camera allowed. Starting scanner...', 'loading', false);
+      initQR();
+    })
+    .catch(function(err) {
+      var m = String(err);
+      if (m.indexOf('NotAllowed') !== -1 || m.indexOf('Permission') !== -1) {
+        setSt('🚫 Camera blocked.<br><br><b>Fix:</b> Click the lock icon 🔒 in address bar → Camera → Allow → Retry', 'error', true);
+      } else if (m.indexOf('NotFound') !== -1) {
+        setSt('❌ No camera found.', 'error', true);
+      } else {
+        setSt('❌ ' + m, 'error', true);
+      }
+    });
+}
+
+function initQR() {
+  qrScanner = new Html5Qrcode('qr-reader');
+  var cfg = { fps: 10, qrbox: { width: 200, height: 200 }, aspectRatio: 1.0, rememberLastUsedCamera: true };
+  qrScanner.start({ facingMode: 'environment' }, cfg, onScan, function() {})
+    .then(function() {
+      running = true;
+      setSt('✅ Camera active — scan a QR code', 'ok', false);
+      setTimeout(hideSt, 2000);
+    })
+    .catch(function() {
+      Html5Qrcode.getCameras().then(function(c) {
+        if (c && c.length) {
+          qrScanner.start(c[0].id, cfg, onScan, function() {})
+            .then(function() { running = true; setSt('✅ Camera active', 'ok', false); setTimeout(hideSt, 2000); })
+            .catch(function(e) { setSt('❌ ' + e, 'error', true); });
+        } else { setSt('❌ No cameras detected.', 'error', true); }
+      });
+    });
+}
+
+function stopCam() {
+  if (qrScanner && running) {
+    qrScanner.stop().then(function() { running = false; qrScanner.clear(); }).catch(function() {});
+  }
+}
+
+function onScan(text) {
+  if (cooldown || text === lastCode) return;
+  cooldown = true; lastCode = text;
+  if (navigator.vibrate) navigator.vibrate(150);
+  toast('Logging ' + dir + '...', 'info');
+  logToSheet(text, dir);
+}
+
+function logToSheet(data, direction) {
+  var url = API_URL
+    + '?action=log'
+    + '&token=' + encodeURIComponent(TOKEN)
+    + '&qrData=' + encodeURIComponent(data)
+    + '&direction=' + encodeURIComponent(direction)
+    + '&userName='
+    + '&_=' + Date.now();
+
+  // Fire via Image tag — bypasses all CORS, guaranteed to work
+  var img = new Image();
+  img.src = url;
+
+  // Optimistic UI
+  toast('✅ ' + direction + ' logged: ' + data, 'success');
+  addHist(data, direction);
+  showLast(data);
+
+  setTimeout(function() { cooldown = false; lastCode = null; }, 2000);
+}
+
+function showLast(v) {
+  var e = document.getElementById('lScan');
+  e.className = 'ls visible ' + dir.toLowerCase();
+  document.getElementById('lVal').textContent = v;
+}
+
+function goBack() {
+  stopCam(); dir = null; lastCode = null; cooldown = false; hideSt();
+  document.getElementById('dirB').className = 'banner';
+  document.getElementById('lScan').className = 'ls';
+  document.getElementById('sScan').classList.remove('visible');
+  document.getElementById('sPick').style.display = 'block';
+}
+
+function addHist(d, dr) {
+  hist.unshift({ d: d, dr: dr, t: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
+  document.getElementById('hL').innerHTML = hist.map(function(e) {
+    return '<div class="hi"><div><div class="qt">' + esc(e.d) + '</div><div class="tm">' + e.t + '</div></div><span class="bg ' + e.dr.toLowerCase() + '">' + e.dr + '</span></div>';
+  }).join('');
+}
+
+function toast(m, t) {
+  var e = document.getElementById('toast');
+  e.textContent = m;
+  e.className = 'toast ' + t + ' show';
+  clearTimeout(window._tt);
+  window._tt = setTimeout(function() { e.classList.remove('show'); }, 2500);
+}
+
+function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+</script>
+</body>
+</html>
