@@ -34,9 +34,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .pb{flex:1;padding:28px 8px;border-radius:14px;font-family:inherit;font-size:18px;font-weight:800;cursor:pointer;border:2px solid transparent;display:flex;flex-direction:column;align-items:center;gap:8px;letter-spacing:1px;text-transform:uppercase;transition:all .15s}
 .pb .i{font-size:32px}
 .pb.inward{background:var(--inward-bg);border-color:var(--inward);color:var(--inward)}
-.pb.inward:hover{background:rgba(34,197,94,0.2)}
 .pb.outward{background:var(--outward-bg);border-color:var(--outward);color:var(--outward)}
-.pb.outward:hover{background:rgba(245,158,11,0.2)}
 
 .ss{display:none}.ss.visible{display:block}
 .hint{text-align:center;font-size:12px;color:var(--dim);margin:10px 0}
@@ -60,7 +58,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .swb{display:block;width:100%;margin-top:12px;padding:10px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--dim);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;text-align:center}
 .swb:hover{border-color:var(--accent);color:var(--text)}
 
-/* ── Result Card (shown after scan) ── */
 .result{margin-top:12px;padding:16px;border-radius:12px;text-align:center;display:none;animation:fi .3s ease}
 .result.visible{display:block}
 .result.found{background:var(--inward-bg);border:2px solid var(--inward)}
@@ -119,11 +116,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <div class="st" id="st"></div>
     <div class="sb"><div id="qr-reader"></div></div>
 
-    <!-- Result card -->
     <div class="result" id="resultCard">
       <div class="r-icon" id="rIcon">✅</div>
       <div class="r-title" id="rTitle">Tray Found</div>
-      <div class="r-detail" id="rDetail">Navigating in sheet...</div>
+      <div class="r-detail" id="rDetail"></div>
       <div class="r-cell" id="rCell"></div>
     </div>
 
@@ -168,6 +164,7 @@ var ALL_FORMATS = [
 
 var dir = null, qrScanner = null, running = false;
 var hist = [], cooldown = false, lastCode = null;
+var jsonpCounter = 0;
 
 function setSt(m, t, retry) {
   var e = document.getElementById('st');
@@ -192,7 +189,7 @@ function startCam() {
   navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
     .then(function(stream) {
       stream.getTracks().forEach(function(t) { t.stop(); });
-      setSt('✅ Camera allowed. Starting scanner...', 'loading', false);
+      setSt('✅ Starting scanner...', 'loading', false);
       initQR();
     })
     .catch(function(err) {
@@ -243,48 +240,71 @@ function stopCam() {
   }
 }
 
-// ── Barcode scanned → search in sheet ──────
 function onScan(text) {
   if (cooldown || text === lastCode) return;
   cooldown = true; lastCode = text;
   if (navigator.vibrate) navigator.vibrate(150);
-
-  // Hide previous result
   document.getElementById('resultCard').className = 'result';
-
   toast('Looking up tray ' + text + '...', 'info');
   searchTray(text, dir);
 }
 
+// ══════════════════════════════════════════
+//  JSONP — guaranteed cross-origin response
+// ══════════════════════════════════════════
 function searchTray(data, direction) {
+  jsonpCounter++;
+  var cbName = '_scanCb' + jsonpCounter;
+
+  // Set a timeout in case the request fails
+  var timeout = setTimeout(function() {
+    if (window[cbName]) {
+      delete window[cbName];
+      showResult({ success: false, message: 'Request timed out. Check your internet.' }, data);
+      cooldown = false; lastCode = null;
+    }
+  }, 10000);
+
+  // Register callback function
+  window[cbName] = function(result) {
+    clearTimeout(timeout);
+    delete window[cbName];
+    showResult(result, data);
+    setTimeout(function() { cooldown = false; lastCode = null; }, 2500);
+  };
+
+  // Create script tag — browser loads it, server returns: cbName({...})
   var url = API_URL
     + '?action=scan'
+    + '&callback=' + cbName
     + '&token=' + encodeURIComponent(TOKEN)
     + '&qrData=' + encodeURIComponent(data)
     + '&direction=' + encodeURIComponent(direction)
     + '&_=' + Date.now();
 
-  fetch(url, { redirect: 'follow' })
-    .then(function(r) { return r.text(); })
-    .then(function(text) {
-      try {
-        var res = JSON.parse(text);
-        showResult(res, data);
-      } catch (e) {
-        showResult({ success: false, message: 'Invalid response', qrData: data }, data);
-      }
-      setTimeout(function() { cooldown = false; lastCode = null; }, 2500);
-    })
-    .catch(function(err) {
-      // CORS fallback — fire via image, assume it worked
-      var img = new Image();
-      img.src = url;
-      showResult({ success: true, message: 'Sent to sheet', qrData: data, cellRef: '—' }, data);
-      setTimeout(function() { cooldown = false; lastCode = null; }, 2500);
-    });
+  var script = document.createElement('script');
+  script.src = url;
+  script.onerror = function() {
+    clearTimeout(timeout);
+    if (window[cbName]) {
+      delete window[cbName];
+      showResult({ success: false, message: 'Network error. Check connection.' }, data);
+      cooldown = false; lastCode = null;
+    }
+    script.remove();
+  };
+  document.head.appendChild(script);
+
+  // Clean up script tag after response
+  var checkDone = setInterval(function() {
+    if (!window[cbName]) {
+      script.remove();
+      clearInterval(checkDone);
+    }
+  }, 500);
 }
 
-// ── Show found / not found result ──────────
+// ── Show result card ───────────────────────
 function showResult(res, data) {
   var card = document.getElementById('resultCard');
   var icon = document.getElementById('rIcon');
@@ -296,24 +316,21 @@ function showResult(res, data) {
     card.className = 'result visible found';
     icon.textContent = '✅';
     title.textContent = 'Tray Found';
-    detail.textContent = 'Sheet is navigating to:';
+    detail.textContent = 'Sheet navigating to:';
     cell.textContent = res.cellRef || '';
     toast('✅ ' + res.message, 'success');
     addHist(data, res.cellRef || '—', true);
   } else {
     card.className = 'result visible notfound';
     icon.textContent = '❌';
-    title.textContent = 'Tray Not Mapped';
+    title.textContent = res.message || 'Tray Not Mapped';
     detail.textContent = 'Scanned: ' + data;
     cell.textContent = '';
     toast('❌ ' + res.message, 'error');
-    addHist(data, 'Not mapped', false);
+    addHist(data, res.message || 'Not mapped', false);
   }
 
-  // Auto-hide after 4 seconds
-  setTimeout(function() {
-    card.className = 'result';
-  }, 4000);
+  setTimeout(function() { card.className = 'result'; }, 5000);
 }
 
 function goBack() {
@@ -324,10 +341,10 @@ function goBack() {
   document.getElementById('sPick').style.display = 'block';
 }
 
-function addHist(d, cellRef, found) {
-  hist.unshift({ d: d, cell: cellRef, found: found, t: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
+function addHist(d, info, found) {
+  hist.unshift({ d: d, info: info, found: found, t: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
   document.getElementById('hL').innerHTML = hist.map(function(e) {
-    return '<div class="hi"><div><div class="qt">' + (e.found ? '✅ ' : '❌ ') + esc(e.d) + '</div><div class="tm">' + e.t + '</div></div><span class="bg ' + (e.found ? 'found' : 'notfound') + '">' + esc(e.cell) + '</span></div>';
+    return '<div class="hi"><div><div class="qt">' + (e.found ? '✅ ' : '❌ ') + esc(e.d) + '</div><div class="tm">' + e.t + '</div></div><span class="bg ' + (e.found ? 'found' : 'notfound') + '">' + esc(e.info) + '</span></div>';
   }).join('');
 }
 
